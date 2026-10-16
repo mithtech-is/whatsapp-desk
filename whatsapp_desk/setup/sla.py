@@ -31,25 +31,33 @@ def ensure_default_sla() -> None:
         if frappe.db.exists("DocType", "Support Settings"):
             frappe.db.set_single_value("Support Settings", "track_service_level_agreement", 1)
 
+        # On a bare ERPNext (no setup wizard run) the Issue Priority records may not
+        # exist yet. Seed the ones we target so the SLA's priority links validate.
+        available = _ensure_issue_priorities()
+        if not available:
+            # Nothing to attach priorities to — a valid Issue SLA can't be built.
+            return
+        default_prio = "Medium" if "Medium" in available else available[0]
+
         doc = frappe.new_doc("Service Level Agreement")
         doc.service_level = SLA_NAME
         doc.document_type = "Issue"
         doc.enabled = 1
         doc.default_service_level_agreement = 0
-        doc.default_priority = "Medium"
+        doc.default_priority = default_prio
         doc.apply_sla_for_resolution = 1
         # Applies only to WhatsApp Issues (wd_source set), never other Issues.
         doc.condition = "doc.get('wd_source')"
 
         for prio, (resp, reso) in TARGETS.items():
-            if frappe.db.exists("Issue Priority", prio):
+            if prio in available:
                 doc.append(
                     "priorities",
                     {
                         "priority": prio,
                         "response_time": resp,
                         "resolution_time": reso,
-                        "default_priority": 1 if prio == "Medium" else 0,
+                        "default_priority": 1 if prio == default_prio else 0,
                     },
                 )
         for status in ("Resolved", "Closed"):
@@ -69,6 +77,29 @@ def ensure_default_sla() -> None:
         # Caller (install _setup) commits; left uncommitted so tests can roll back.
     except Exception:
         frappe.log_error(frappe.get_traceback(), "whatsapp_desk: ensure_default_sla failed")
+
+
+def _ensure_issue_priorities() -> list[str]:
+    """Return the Issue Priorities we target, seeding any that are missing.
+
+    A bare ERPNext install (no setup wizard) has no Issue Priority records, which
+    would make the SLA's priority links fail. Issue Priority autonames by Prompt,
+    so the name is supplied via __newname.
+    """
+    if not frappe.db.exists("DocType", "Issue Priority"):
+        return []
+    available = []
+    for prio in TARGETS:  # Low / Medium / High
+        if not frappe.db.exists("Issue Priority", prio):
+            try:
+                frappe.get_doc({"doctype": "Issue Priority", "__newname": prio}).insert(
+                    ignore_permissions=True
+                )
+            except Exception:
+                frappe.clear_last_message()
+        if frappe.db.exists("Issue Priority", prio):
+            available.append(prio)
+    return available
 
 
 def _default_holiday_list() -> str:
