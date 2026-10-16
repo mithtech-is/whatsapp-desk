@@ -1,0 +1,21 @@
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "whatsapp_desk"
+authors = [
+    { name = "MithTech", email = "manoj@polemarch.in" },
+]
+description = "WhatsApp agent desk, visual chatbot flow builder, SLA and campaigns — a native-first add-on for frappe_whatsapp, whatsapp_chat and frappe_whatsapp_chatbot."
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = []
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<17.0.0"
+erpnext = ">=15.0.0,<17.0.0"
+
+[tool.flit.module]
+name = "whatsapp_desk"
